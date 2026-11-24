@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>SOLSTICE BAY — 3D Open-World Crime</title>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+  html,body { width:100%; height:100%; overflow:hidden; background:#1a0f1e; font-family:"Segoe UI",system-ui,-apple-system,Roboto,Arial,sans-serif; color:#fff; }
+  #game-canvas { position:fixed; inset:0; display:block; touch-action:none; }
+  .hidden { display:none !important; }
+  /* ---------- generic panel ---------- */
+  .panel { background:rgba(10,8,18,.72); border:1px solid rgba(255,180,120,.25); border-radius:10px; backdrop-filter:blur(3px); box-shadow:0 4px 18px rgba(0,0,0,.45); }
+  /* ---------- HUD ---------- */
+  #hud { position:fixed; inset:0; pointer-events:none; z-index:5; }
+  #mission-box { position:absolute; top:12px; left:12px; padding:10px 12px; min-width:250px; max-width:320px; }
+  #mission-box .m-title { color:#ffb347; font-weight:800; letter-spacing:.5px; font-size:14px; text-transform:uppercase; }
+  #mission-box .m-stage { color:#ff7b7b; font-size:11px; font-weight:700; margin-top:2px; }
+  #mission-box .m-obj { font-size:13px; margin-top:5px; line-height:1.35; color:#f2e9ff; }
+  #mission-box .m-timer { font-size:18px; font-weight:800; color:#ffd76a; margin-top:4px; font-variant-numeric:tabular-nums; }
+  #mission-box .m-dist { font-size:12px; color:#9fd8ff; margin-top:2px; }
+  #mission-box .m-none { color:#cfc4de; font-size:13px; }
+  #stats-box { position:absolute; top:12px; right:12px; padding:10px 14px; text-align:right; }
+  #money { font-size:22px; font-weight:900; color:#7dff8a; letter-spacing:.5px; }
+  #clock { font-size:12px; color:#ffd9a0; margin-top:2px; }
+  #stars { font-size:20px; letter-spacing:3px; margin-top:3px; color:#ffd76a; text-shadow:0 0 8px rgba(255,80,80,.6); }
+  #stars .off { color:rgba(255,255,255,.22); text-shadow:none; }
+  #wanted-label { font-size:11px; font-weight:800; color:#ff5b5b; letter-spacing:2px; }
+  #minimap-wrap { position:absolute; left:12px; bottom:12px; width:170px; }
+  #minimap { width:170px; height:170px; border-radius:50%; border:3px solid rgba(255,180,120,.5); display:block; background:#221831; }
+  #bars { margin-top:8px; }
+  .bar-row { display:flex; align-items:center; gap:6px; font-size:10px; font-weight:800; letter-spacing:1px; }
+  .bar { flex:1; height:9px; background:rgba(255,255,255,.15); border-radius:5px; overflow:hidden; }
+  .bar > div { height:100%; border-radius:5px; transition:width .15s; }
+  #health-fill { background:linear-gradient(90deg,#37e08b,#8dffb0); width:100%; }
+  #armour-fill { background:linear-gradient(90deg,#4aa8ff,#9fd0ff); width:50%; }
+  #speed-box { position:absolute; right:14px; bottom:14px; text-align:right; padding:10px 14px; }
+  #speed { font-size:38px; font-weight:900; line-height:1; font-variant-numeric:tabular-nums; }
+  #speed small { font-size:13px; color:#ffb347; font-weight:700; }
+  #veh-name { font-size:13px; font-weight:800; color:#ffd9a0; letter-spacing:1px; }
+  #veh-cond { height:6px; background:rgba(255,255,255,.15); border-radius:3px; margin-top:5px; overflow:hidden; }
+  #veh-cond > div { height:100%; background:#ffb347; width:100%; }
+  #nitro-row { font-size:11px; font-weight:800; color:#7df3ff; margin-top:4px; letter-spacing:1px; }
+  #callout { position:absolute; left:50%; bottom:16px; transform:translateX(-50%); max-width:520px; padding:9px 16px; font-size:13.5px; line-height:1.4; text-align:center; }
+  #callout b { color:#ffb347; }
+  #crosshair { position:absolute; left:50%; top:50%; width:22px; height:22px; margin:-11px 0 0 -11px; }
+  #crosshair:before, #crosshair:after { content:""; position:absolute; background:rgba(255,255,255,.9); box-shadow:0 0 4px #000; }
+  #crosshair:before { left:10px; top:0; width:2px; height:22px; }
+  #crosshair:after { left:0; top:10px; width:22px; height:2px; }
+  #prompt { position:absolute; left:50%; bottom:120px; transform:translateX(-50%); padding:8px 16px; font-size:14px; font-weight:700; background:rgba(10,8,18,.8); border:1px solid #ffb347; border-radius:8px; }
+  #prompt b { color:#ffd76a; }
+  #toast { position:absolute; left:50%; top:18%; transform:translateX(-50%); padding:12px 26px; font-size:20px; font-weight:900; letter-spacing:1px; text-align:center; }
+  #toast.good { color:#7dff8a; border-color:#7dff8a; }
+  #toast.bad { color:#ff6b6b; border-color:#ff6b6b; }
+  #vignette { position:fixed; inset:0; pointer-events:none; z-index:6; opacity:0; background:radial-gradient(ellipse at center, transparent 55%, rgba(255,0,0,.55) 100%); transition:opacity .12s; }
+  #ammo { position:absolute; right:14px; bottom:150px; text-align:right; font-size:15px; font-weight:800; color:#ffe9b0; text-shadow:0 2px 4px #000; }
+  #weapon-name { font-size:12px; color:#9fd8ff; }
+  /* ---------- menus ---------- */
+  .screen { position:fixed; inset:0; z-index:20; display:flex; align-items:center; justify-content:center; flex-direction:column; background:radial-gradient(ellipse at 50% 120%, rgba(255,120,60,.35), rgba(10,5,20,.92) 65%); }
+  .game-title { font-size:64px; font-weight:900; letter-spacing:4px; background:linear-gradient(180deg,#ffe9a8,#ff9a3d 55%,#ff4d6d); -webkit-background-clip:text; background-clip:text; color:transparent; text-shadow:0 6px 30px rgba(255,90,40,.35); }
+  .game-sub { font-size:15px; letter-spacing:6px; color:#ffb347; font-weight:700; margin-top:2px; }
+  .menu-card { margin-top:28px; padding:22px 28px; min-width:340px; text-align:center; }
+  .btn { display:block; width:100%; margin:8px 0; padding:13px; font-size:16px; font-weight:800; letter-spacing:1px; color:#1a0f1e; background:linear-gradient(180deg,#ffd76a,#ff9a3d); border:none; border-radius:9px; cursor:pointer; pointer-events:auto; }
+  .btn:hover { filter:brightness(1.12); }
+  .btn.ghost { background:rgba(255,255,255,.1); color:#ffe9b0; border:1px solid rgba(255,180,120,.4); }
+  .controls-list { text-align:left; font-size:13.5px; line-height:1.9; color:#e8ddff; margin:6px 0; }
+  .controls-list b { color:#ffd76a; display:inline-block; min-width:110px; }
+  .fine { font-size:12px; color:#b9a8cc; margin-top:10px; line-height:1.5; }
+  #busted .game-title { background:linear-gradient(180deg,#ff9a9a,#c81e1e); -webkit-background-clip:text; background-clip:text; }
+  /* ---------- touch ---------- */
+  #touch-ui { position:fixed; inset:0; z-index:8; pointer-events:none; }
+  /* full-screen touch layer (below the buttons): left half = floating
+     joystick (appears where the thumb lands), right half = camera drag.
+     pointer-events:auto here + touch-action:none so real touch input
+     reaches the game instead of being swallowed by the canvas/HUD. */
+  #touch-layer { position:absolute; inset:0; pointer-events:auto; touch-action:none; z-index:1; }
+  #joy-base { position:absolute; left:0; top:0; width:132px; height:132px; border-radius:50%; background:rgba(255,255,255,.08); border:2px solid rgba(255,255,255,.35); transform:translate(-50%,-50%); opacity:0; visibility:hidden; transition:opacity .08s; pointer-events:none; z-index:2; }
+  #joy-base.on { opacity:1; visibility:visible; }
+  #joy-knob { position:absolute; left:50%; top:50%; width:62px; height:62px; margin:-31px 0 0 -31px; border-radius:50%; background:rgba(255,180,80,.75); border:2px solid rgba(255,255,255,.6); }
+  .tbtn { position:absolute; pointer-events:auto; touch-action:none; z-index:3; width:78px; height:78px; border-radius:50%; border:2px solid rgba(255,255,255,.5); background:rgba(10,8,18,.55); color:#fff; font-size:12px; font-weight:800; letter-spacing:.5px; display:flex; align-items:center; justify-content:center; text-align:center; }
+  .tbtn:active { background:rgba(255,160,60,.7); }
+  #btn-jump { right:24px; bottom:196px; }
+  #btn-fire { right:110px; bottom:132px; background:rgba(200,30,30,.55); }
+  #btn-car { right:24px; bottom:288px; }
+  #btn-nitro { right:110px; bottom:230px; }
+  #btn-cam { right:24px; bottom:380px; width:64px; height:64px; }
+  #btn-mission { right:104px; bottom:380px; width:84px; height:44px; border-radius:22px; background:rgba(255,180,80,.6); color:#1a0f1e; font-size:11px; }
+  #btn-pause { right:24px; bottom:458px; width:54px; height:54px; font-size:16px; }
+  @media (max-width:700px) {
+    .game-title { font-size:40px; }
+    #mission-box { min-width:190px; max-width:230px; padding:8px; }
+    #minimap { width:120px; height:120px; }
+    #minimap-wrap { width:120px; }
+    #speed { font-size:28px; }
+    #callout { bottom:190px; font-size:12px; max-width:92vw; }
+    #prompt { bottom:300px; }
+    #ammo { bottom:330px; }
+  }
+</style>
+</head>
+<body>
+<canvas id="game-canvas"></canvas>
+<div id="vignette"></div>
+
+<!-- HUD -->
+<div id="hud" class="hidden">
+  <div id="mission-box" class="panel">
+    <div class="m-none" id="mission-none">Free roam — find a gold <b style="color:#ffd76a">M</b> beacon to start a mission.</div>
+    <div id="mission-active" class="hidden">
+      <div class="m-title" id="m-title">MISSION</div>
+      <div class="m-stage" id="m-stage">STAGE 1/3</div>
+      <div class="m-obj" id="m-obj">Objective</div>
+      <div class="m-timer" id="m-timer">03:00</div>
+      <div class="m-dist" id="m-dist">— m</div>
+    </div>
+  </div>
+  <div id="stats-box" class="panel">
+    <div id="money">$1,200</div>
+    <div id="clock">DAY 1 · 18:14</div>
+    <div id="wanted-label" class="hidden">WANTED</div>
+    <div id="stars"><span class="off">★</span><span class="off">★</span><span class="off">★</span><span class="off">★</span><span class="off">★</span></div>
+  </div>
+  <div id="minimap-wrap">
+    <canvas id="minimap" width="340" height="340"></canvas>
+    <div id="bars">
+      <div class="bar-row"><span style="width:46px">HEALTH</span><div class="bar"><div id="health-fill"></div></div></div>
+      <div class="bar-row" style="margin-top:4px"><span style="width:46px">ARMOUR</span><div class="bar"><div id="armour-fill"></div></div></div>
+    </div>
+  </div>
+  <div id="speed-box" class="panel">
+    <div id="speed">0 <small>MPH</small></div>
+    <div id="veh-name">ON FOOT</div>
+    <div id="veh-cond"><div id="veh-cond-fill"></div></div>
+    <div id="nitro-row">NITRO — SHIFT</div>
+  </div>
+  <div id="ammo"><span id="weapon-name">PISTOL ∞</span><br><span id="ammo-count"></span></div>
+  <div id="callout" class="panel hidden"></div>
+  <div id="crosshair" class="hidden"></div>
+  <div id="prompt" class="hidden"></div>
+  <div id="toast" class="panel hidden"></div>
+</div>
+
+<!-- Touch controls -->
+<div id="touch-ui" class="hidden">
+  <div id="touch-layer"></div>
+  <div id="joy-base"><div id="joy-knob"></div></div>
+  <div class="tbtn" id="btn-jump">JUMP</div>
+  <div class="tbtn" id="btn-fire">FIRE</div>
+  <div class="tbtn" id="btn-car">CAR</div>
+  <div class="tbtn" id="btn-nitro">NITRO</div>
+  <div class="tbtn" id="btn-cam">CAM</div>
+  <div class="tbtn" id="btn-mission">MISSION</div>
+  <div class="tbtn" id="btn-pause">II</div>
+</div>
+
+<!-- Start menu -->
+<div id="menu" class="screen">
+  <div class="game-title">SOLSTICE BAY</div>
+  <div class="game-sub">3D OPEN-WORLD CRIME · TOKYO BAY</div>
+  <div class="menu-card panel">
+    <button class="btn" id="btn-start">▶ &nbsp;NEW GAME</button>
+    <button class="btn ghost" id="btn-continue">CONTINUE</button>
+    <div class="controls-list">
+      <div><b>W A S D</b> move / drive &nbsp;·&nbsp; <b>MOUSE</b> drag camera</div>
+      <div><b>SPACE</b> jump / handbrake &nbsp;·&nbsp; <b>SHIFT</b> run / nitro</div>
+      <div><b>E</b> enter / exit car &nbsp;·&nbsp; <b>CLICK / F</b> shoot</div>
+      <div><b>1 / 2</b> pistol / SMG &nbsp;·&nbsp; <b>R</b> reload &nbsp;·&nbsp; <b>M</b> mission</div>
+      <div><b>P / ESC</b> pause &nbsp;·&nbsp; <b>C</b> camera &nbsp;·&nbsp; <b>X</b> unstick</div>
+    </div>
+    <div class="fine">Neon-lit Tokyo streets — Shibuya crossing, sakura, torii, ramen carts and the monorail. Steal race cars, run missions, outrun the SBPD. 5 wanted stars max — at 3+ the Air-1 helicopter joins the chase. Everything runs 100% offline.</div>
+  </div>
+</div>
+
+<!-- Pause menu -->
+<div id="pause-menu" class="screen hidden">
+  <div class="game-title" style="font-size:44px">PAUSED</div>
+  <div class="menu-card panel">
+    <button class="btn" id="btn-resume">RESUME</button>
+    <button class="btn ghost" id="btn-restart-mission">RESTART MISSION</button>
+    <button class="btn ghost" id="btn-unstick">UNSTICK (teleport to road)</button>
+    <button class="btn ghost" id="btn-quit">QUIT TO MENU</button>
+    <div class="fine">Progress (money + missions cleared) is saved on this device.</div>
+  </div>
+</div>
+
+<!-- Busted screen -->
+<div id="busted" class="screen hidden">
+  <div class="game-title">BUSTED</div>
+  <div class="game-sub" style="color:#ff8b8b">THE SBPD CAUGHT YOU</div>
+  <div class="menu-card panel">
+    <div style="font-size:15px">Bail: <b style="color:#ff8b8b">-$500</b> · Wanted cleared</div>
+    <button class="btn" id="btn-respawn" style="margin-top:14px">RESPAWN AT HOSPITAL</button>
+  </div>
+</div>
+
+<script src="js/three.min.js"></script>
+<script src="js/world.js"></script>
+<script src="js/game.js"></script>
+<script src="js/ui.js"></script>
+</body>
+</html>
